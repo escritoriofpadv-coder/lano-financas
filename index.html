@@ -40,36 +40,24 @@
         <span class="balance-hint">entradas − saídas − contas fixas</span>
       </div>
 
-      <!-- Microfone: progresso das contas do mês -->
+      <!-- Símbolo $: borda muda de cor (vermelho/amarelo/verde) e o interior preenche -->
       <div class="mic-card">
         <div class="mic">
-          <svg viewBox="0 0 140 210" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <svg viewBox="0 0 120 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <defs>
-              <linearGradient id="micFill" x1="0" y1="1" x2="0" y2="0">
-                <stop offset="0" stop-color="#0f7a3d" />
-                <stop offset="1" stop-color="#2bb673" />
-              </linearGradient>
-              <clipPath id="micClip">
-                <rect x="40" y="18" width="60" height="130" rx="30" ry="30" />
+              <clipPath id="dollarClip">
+                <text x="60" y="158" font-size="190" font-weight="900" text-anchor="middle"
+                      font-family="Arial, Helvetica, sans-serif">$</text>
               </clipPath>
             </defs>
-            <g clip-path="url(#micClip)">
-              <rect x="40" y="18" width="60" height="130" fill="#1f2630" />
-              <rect id="micLevel" class="mic-level" x="40" y="18" width="60" height="130" fill="url(#micFill)" />
-              <g stroke="rgba(255,255,255,0.13)" stroke-width="3" stroke-linecap="round">
-                <line x1="46" y1="40" x2="94" y2="40" />
-                <line x1="46" y1="56" x2="94" y2="56" />
-                <line x1="46" y1="72" x2="94" y2="72" />
-                <line x1="46" y1="88" x2="94" y2="88" />
-                <line x1="46" y1="104" x2="94" y2="104" />
-                <line x1="46" y1="120" x2="94" y2="120" />
-                <line x1="46" y1="136" x2="94" y2="136" />
-              </g>
+            <!-- interior que preenche de baixo para cima -->
+            <g clip-path="url(#dollarClip)">
+              <rect id="dollarLevel" class="dollar-level" x="0" y="0" width="120" height="200" fill="#2bb673" />
             </g>
-            <rect x="40" y="18" width="60" height="130" rx="30" ry="30" fill="none" stroke="#cfe9da" stroke-width="3" />
-            <path d="M26 96 V112 A44 40 0 0 0 114 112 V96" fill="none" stroke="#cfe9da" stroke-width="3" stroke-linecap="round" />
-            <line x1="70" y1="152" x2="70" y2="186" stroke="#cfe9da" stroke-width="4" stroke-linecap="round" />
-            <rect x="48" y="186" width="44" height="8" rx="4" fill="#cfe9da" />
+            <!-- borda do $ (cor definida pelo saldo) -->
+            <text id="dollarOutline" x="60" y="158" font-size="190" font-weight="900" text-anchor="middle"
+                  font-family="Arial, Helvetica, sans-serif" fill="none" stroke="#93a0b4"
+                  stroke-width="5" stroke-linejoin="round">$</text>
           </svg>
         </div>
         <div class="mic-info">
@@ -132,7 +120,7 @@
         <h2 class="card-title">Despesas fixas</h2>
         <span class="count-badge" id="fixedTotalBadge">R$ 0,00</span>
       </div>
-      <p class="hint">As contas que você paga todo mês. Marque o ✓ quando pagar. O microfone enche conforme suas entradas cobrem esse total.</p>
+      <p class="hint">As contas que você paga todo mês. Marque o ✓ quando pagar. O símbolo $ enche conforme suas entradas cobrem esse total.</p>
       <form id="fixedForm" autocomplete="off">
         <div class="row">
           <label class="field grow">

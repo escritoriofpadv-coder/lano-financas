@@ -42,9 +42,10 @@
     list: document.getElementById("entriesList"),
     empty: document.getElementById("emptyState"),
     countBadge: document.getElementById("countBadge"),
-    // microfone
+    // símbolo $
     micCard: document.querySelector(".mic-card"),
-    micLevel: document.getElementById("micLevel"),
+    dollarLevel: document.getElementById("dollarLevel"),
+    dollarOutline: document.getElementById("dollarOutline"),
     metaPct: document.getElementById("metaPct"),
     metaStatus: document.getElementById("metaStatus"),
     metaDetail: document.getElementById("metaDetail"),
@@ -200,14 +201,19 @@
     var target = totalFixed();
     el.micCard.classList.remove("covered", "missing");
     if (target <= 0) {
-      el.micLevel.style.transform = "scaleY(0)";
+      el.dollarLevel.style.transform = "scaleY(0)";
+      el.dollarOutline.style.stroke = "#93a0b4";
+      el.dollarLevel.style.fill = "#93a0b4";
       el.metaPct.textContent = "—";
       el.metaStatus.textContent = "Cadastre suas despesas fixas";
       el.metaDetail.textContent = "para acompanhar quanto falta para as contas do mês.";
       return;
     }
     var frac = clamp(saldoBruto / target, 0, 1);
-    el.micLevel.style.transform = "scaleY(" + frac + ")";
+    var cor = balanceColor(saldoBruto - target, target); // mesma cor do saldo (vermelho/amarelo/verde)
+    el.dollarLevel.style.transform = "scaleY(" + frac + ")";
+    el.dollarLevel.style.fill = cor;
+    el.dollarOutline.style.stroke = cor;
     el.metaPct.textContent = Math.round(frac * 100) + "%";
     var gap = target - saldoBruto;
     if (gap > 0.005) {

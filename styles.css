@@ -133,12 +133,14 @@ body {
 .mic { flex: 0 0 92px; }
 .mic svg { width: 92px; height: auto; display: block; }
 
-.mic-level {
+.mic-level, .dollar-level {
   transform-box: fill-box;
   transform-origin: 50% 100%;
   transform: scaleY(0);
   transition: transform 0.55s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
+#dollarOutline { transition: stroke 0.4s ease; }
+#dollarLevel { transition: transform 0.55s cubic-bezier(0.34, 1.2, 0.64, 1), fill 0.4s ease; }
 
 .mic-info { flex: 1; min-width: 0; }
 .mic-pct { display: block; font-size: 32px; font-weight: 800; letter-spacing: -0.5px; line-height: 1; }
