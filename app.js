@@ -64,7 +64,8 @@
     // backup
     exportBtn: document.getElementById("exportBtn"),
     importBtn: document.getElementById("importBtn"),
-    importFile: document.getElementById("importFile")
+    importFile: document.getElementById("importFile"),
+    pdfBtn: document.getElementById("pdfBtn")
   };
 
   // ---------- Persistência ----------
@@ -537,6 +538,141 @@
       el.importFile.value = "";
     };
     reader.readAsText(file);
+  });
+
+  // ---------- Relatório em PDF (gerador próprio, sem bibliotecas) ----------
+  function monthDataForPdf() {
+    var me = entries.filter(function (e) { return inViewMonth(e.date); });
+    var totalIn = 0, totalOut = 0, ess = 0, laz = 0;
+    me.forEach(function (e) {
+      if (e.type === "in") totalIn += e.amount;
+      else { totalOut += e.amount; if (e.cat === "lazer") laz += e.amount; else ess += e.amount; }
+    });
+    var fix = totalFixed();
+    return { me: me, totalIn: totalIn, totalOut: totalOut, ess: ess, laz: laz, fix: fix, saldoReal: totalIn - totalOut - fix };
+  }
+
+  function buildReportLines() {
+    var d = monthDataForPdf();
+    var L = [];
+    function add(t, b, s) { L.push({ t: t, b: !!b, s: s || 11 }); }
+    add("Lano Finanças", true, 20);
+    add("Relatório de " + monthFmt.format(new Date(viewYear, viewMonth, 1)), false, 12);
+    add("", false, 11);
+    add("RESUMO", true, 13);
+    add("Entradas:  " + brl.format(d.totalIn));
+    add("Saídas:  " + brl.format(d.totalOut));
+    add("Contas fixas:  " + brl.format(d.fix));
+    var st = d.saldoReal > 0.005 ? "POSITIVO" : (d.saldoReal < -0.005 ? "NEGATIVO" : "NO ZERO");
+    add("Saldo total (entradas - saídas - contas fixas): " + brl.format(d.saldoReal) + "  [" + st + "]", true);
+    add("", false, 11);
+    add("PARA ONDE FOI O DINHEIRO", true, 13);
+    var tot = d.fix + d.ess + d.laz;
+    function pc(v) { return tot > 0 ? Math.round((v / tot) * 100) + "%" : "0%"; }
+    add("Fixo (contas):  " + brl.format(d.fix) + "  (" + pc(d.fix) + ")");
+    add("Essencial:  " + brl.format(d.ess) + "  (" + pc(d.ess) + ")");
+    add("Lazer:  " + brl.format(d.laz) + "  (" + pc(d.laz) + ")");
+    var mk = monthKey();
+    if (fixed.length) {
+      var paid = fixed.filter(function (f) { return f.paid && f.paid[mk]; }).length;
+      add("Contas fixas pagas: " + paid + " de " + fixed.length);
+    }
+    add("", false, 11);
+    add("LANÇAMENTOS DO MÊS", true, 13);
+    if (!d.me.length) add("(nenhum lançamento)");
+    d.me.slice().sort(function (a, b) {
+      if (a.date === b.date) return a.created - b.created;
+      return a.date < b.date ? -1 : 1;
+    }).forEach(function (e) {
+      var p = e.date.split("-");
+      var sign = e.type === "in" ? "+" : "-";
+      var cat = e.type === "out" ? (e.cat === "lazer" ? " [Lazer]" : " [Essencial]") : "";
+      var desc = e.desc.length > 32 ? e.desc.slice(0, 31) + "..." : e.desc;
+      add(p[2] + "/" + p[1] + "   " + sign + brl.format(e.amount) + "   " + desc + cat);
+    });
+    add("", false, 11);
+    add("Gerado em " + new Date().toLocaleString("pt-BR") + " - Lano Finanças", false, 9);
+    return L;
+  }
+
+  function pdfSan(s) {
+    return String(s)
+      .replace(/[—–−]/g, "-").replace(/✓/g, "OK").replace(/[•·]/g, "-")
+      .replace(/…/g, "...").replace(/[^\x00-\xFF]/g, "?");
+  }
+  function pdfEsc(s) {
+    return pdfSan(s).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+  }
+  function pad10(n) { var s = "" + n; while (s.length < 10) s = "0" + s; return s; }
+
+  function generatePdfBlob() {
+    var lines = buildReportLines();
+    var ML = 50, MT = 792, MIN_Y = 56;
+    // paginação
+    var pages = [], cur = [], y = MT;
+    lines.forEach(function (ln) {
+      var lh = ln.s >= 16 ? 26 : (ln.s >= 13 ? 20 : 16);
+      if (y - lh < MIN_Y) { pages.push(cur); cur = []; y = MT; }
+      cur.push({ ln: ln, y: y });
+      y -= lh;
+    });
+    if (cur.length) pages.push(cur);
+
+    function buildCS(page) {
+      var cs = "";
+      page.forEach(function (it) {
+        if (it.ln.t === "") return;
+        var f = it.ln.b ? "F2" : "F1";
+        cs += "BT /" + f + " " + it.ln.s + " Tf 1 0 0 1 " + ML + " " + it.y + " Tm (" + pdfEsc(it.ln.t) + ") Tj ET\n";
+      });
+      return cs;
+    }
+
+    var numPages = pages.length || 1;
+    var fontReg = 3, fontBold = 4, firstPage = 5;
+    var kids = [];
+    for (var i = 0; i < numPages; i++) kids.push((firstPage + i * 2) + " 0 R");
+    var objs = [];
+    objs[1] = "<< /Type /Catalog /Pages 2 0 R >>";
+    objs[2] = "<< /Type /Pages /Kids [" + kids.join(" ") + "] /Count " + numPages +
+      " /MediaBox [0 0 595 842] /Resources << /Font << /F1 " + fontReg + " 0 R /F2 " + fontBold + " 0 R >> >> >>";
+    objs[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";
+    objs[4] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>";
+    for (i = 0; i < numPages; i++) {
+      var content = buildCS(pages[i] || []);
+      var pageNum = firstPage + i * 2, contNum = pageNum + 1;
+      objs[pageNum] = "<< /Type /Page /Parent 2 0 R /Contents " + contNum + " 0 R >>";
+      objs[contNum] = "<< /Length " + content.length + " >>\nstream\n" + content + "\nendstream";
+    }
+
+    var totalObjs = 4 + numPages * 2;
+    var pdf = "%PDF-1.4\n", offsets = [];
+    for (var n = 1; n <= totalObjs; n++) {
+      offsets[n] = pdf.length;
+      pdf += n + " 0 obj\n" + objs[n] + "\nendobj\n";
+    }
+    var xref = pdf.length;
+    pdf += "xref\n0 " + (totalObjs + 1) + "\n0000000000 65535 f \n";
+    for (n = 1; n <= totalObjs; n++) pdf += pad10(offsets[n]) + " 00000 n \n";
+    pdf += "trailer\n<< /Size " + (totalObjs + 1) + " /Root 1 0 R >>\nstartxref\n" + xref + "\n%%EOF";
+
+    var bytes = new Uint8Array(pdf.length);
+    for (i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i) & 0xFF;
+    return new Blob([bytes], { type: "application/pdf" });
+  }
+
+  el.pdfBtn.addEventListener("click", function () {
+    try {
+      var blob = generatePdfBlob();
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "lano-financas-relatorio-" + monthKey() + ".pdf";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+    } catch (e) {
+      alert("Não foi possível gerar o PDF.");
+    }
   });
 
   // ---------- Init ----------
