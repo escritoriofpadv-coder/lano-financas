@@ -9,6 +9,7 @@
   --green-deep: #0f7a3d;
   --red: #ef5350;
   --red-deep: #b3261e;
+  --amber: #f0a23a;
   --shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
   --radius: 16px;
 }
@@ -29,6 +30,7 @@ body {
   margin: 0 auto;
   min-height: 100vh;
   padding-bottom: env(safe-area-inset-bottom);
+  overflow-x: hidden;
 }
 
 /* ---------- Topbar ---------- */
@@ -84,6 +86,7 @@ body {
   font-size: 24px;
   line-height: 1;
   cursor: pointer;
+  flex: 0 0 auto;
 }
 .icon-btn:active { background: rgba(255, 255, 255, 0.3); }
 
@@ -102,7 +105,7 @@ body {
   box-shadow: var(--shadow);
 }
 .balance-caption { display: block; color: var(--muted); font-size: 13px; }
-.balance-value { display: block; font-size: 38px; font-weight: 800; margin: 6px 0 8px; letter-spacing: -0.5px; }
+.balance-value { display: block; font-size: 38px; font-weight: 800; margin: 6px 0 8px; letter-spacing: -0.5px; color: var(--muted); }
 
 .balance-status {
   display: inline-block;
@@ -114,10 +117,7 @@ body {
   background: var(--surface-2);
   color: var(--muted);
 }
-.balance-card.positive .balance-value { color: var(--green); }
-.balance-card.positive .balance-status { background: rgba(43, 182, 115, 0.16); color: var(--green); }
-.balance-card.negative .balance-value { color: var(--red); }
-.balance-card.negative .balance-status { background: rgba(239, 83, 80, 0.16); color: var(--red); }
+.balance-hint { display: block; color: #5e6b7d; font-size: 11px; margin-top: 8px; }
 
 /* ---------- Microfone (contas do mês) ---------- */
 .mic-card {
@@ -148,11 +148,12 @@ body {
 .mic-card.covered .mic-pct,
 .mic-card.covered .mic-status { color: var(--green); }
 .mic-card.missing .mic-pct { color: var(--text); }
-.mic-card.missing .mic-status { color: #f0a23a; }
+.mic-card.missing .mic-status { color: var(--amber); }
 
 .totals { display: flex; gap: 12px; }
 .total-pill {
   flex: 1;
+  min-width: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -174,15 +175,16 @@ body {
 .card-title { font-size: 15px; margin: 0 0 12px; font-weight: 700; }
 
 /* ---------- Form ---------- */
-.type-toggle {
+.type-toggle, .cat-toggle {
   display: flex;
   background: var(--surface-2);
   border-radius: 12px;
   padding: 4px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
-.type-btn {
+.type-btn, .cat-btn {
   flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
   color: var(--muted);
@@ -196,11 +198,16 @@ body {
 .type-btn.active[data-type="in"] { background: var(--green); color: #04270f; }
 .type-btn.active[data-type="out"] { background: var(--red); color: #2b0605; }
 
+.cat-toggle { display: none; }
+.cat-toggle.show { display: flex; }
+.cat-btn { font-size: 14px; padding: 9px; }
+.cat-btn.active[data-cat="essencial"] { background: #3b82f6; color: #04122b; }
+.cat-btn.active[data-cat="lazer"] { background: #b06be0; color: #1c0a2b; }
+
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .field > span { font-size: 13px; color: var(--muted); }
 .row { display: flex; gap: 12px; }
-.row .grow { flex: 1; }
-.row .field { flex: 0 0 auto; }
+.row > .field { flex: 1 1 0; min-width: 0; margin-bottom: 12px; }
 
 input[type="text"], input[type="date"] {
   background: var(--surface-2);
@@ -210,7 +217,11 @@ input[type="text"], input[type="date"] {
   font-size: 16px; /* >=16px evita zoom no iOS */
   color: var(--text);
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
+input[type="date"] { -webkit-appearance: none; appearance: none; }
 input:focus { outline: none; border-color: var(--green); }
 input::placeholder { color: #5e6b7d; }
 
@@ -227,9 +238,24 @@ input::placeholder { color: #5e6b7d; }
   margin-top: 4px;
 }
 .submit-btn:active { filter: brightness(0.92); }
-.submit-btn.alt { background: var(--surface-2); border: 1px solid var(--border); }
+.submit-btn.alt { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); }
 
 .hint { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+
+.backup-row { display: flex; gap: 12px; }
+.backup-row .submit-btn { margin-top: 0; }
+
+/* ---------- Relatório ---------- */
+.report-bars { display: flex; flex-direction: column; gap: 12px; }
+.report-row .report-top { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 5px; }
+.report-row .report-name { font-weight: 600; }
+.report-row .report-val { color: var(--muted); white-space: nowrap; }
+.report-track { background: var(--surface-2); border-radius: 999px; height: 12px; overflow: hidden; }
+.report-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+.report-fill.fixo { background: var(--amber); }
+.report-fill.essencial { background: #3b82f6; }
+.report-fill.lazer { background: #b06be0; }
+.report-paid { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
 
 /* ---------- Lista ---------- */
 .list-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
@@ -241,14 +267,15 @@ input::placeholder { color: #5e6b7d; }
   font-weight: 700;
   padding: 3px 10px;
   border-radius: 999px;
+  white-space: nowrap;
 }
 
 .entries { list-style: none; margin: 0; padding: 0; }
 .entry {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 4px;
+  gap: 10px;
+  padding: 12px 2px;
   border-bottom: 1px solid var(--border);
 }
 .entry:last-child { border-bottom: none; }
@@ -264,24 +291,39 @@ input::placeholder { color: #5e6b7d; }
 
 .entry-info { flex: 1; min-width: 0; }
 .entry-desc { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.entry-date { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.entry-sub { font-size: 12px; color: var(--muted); margin-top: 2px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.cat-tag { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; letter-spacing: 0.3px; }
+.cat-tag.essencial { background: rgba(59,130,246,0.18); color: #6ea8fe; }
+.cat-tag.lazer { background: rgba(176,107,224,0.18); color: #c89bec; }
 
 .entry-amount { font-size: 15px; font-weight: 700; white-space: nowrap; }
 .entry-amount.in { color: var(--green); }
 .entry-amount.out { color: var(--red); }
 
-.del-btn {
+.entry-actions { display: flex; flex: 0 0 auto; }
+.icon-act {
   border: none;
   background: transparent;
   color: var(--muted);
-  font-size: 20px;
-  width: 34px;
-  height: 34px;
+  font-size: 17px;
+  width: 32px;
+  height: 32px;
   border-radius: 9px;
   cursor: pointer;
-  flex: 0 0 auto;
 }
-.del-btn:active { background: var(--surface-2); color: var(--red); }
+.icon-act:active { background: var(--surface-2); }
+.icon-act.del:active { color: var(--red); }
+
+/* checkbox de conta paga */
+.paid-check {
+  width: 24px; height: 24px; flex: 0 0 auto;
+  border-radius: 7px; border: 2px solid var(--border);
+  background: transparent; color: transparent;
+  font-size: 15px; font-weight: 900; cursor: pointer; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.paid-check.on { background: var(--green); border-color: var(--green); color: #04270f; }
+.entry.paid .entry-desc { text-decoration: line-through; color: var(--muted); }
 
 .empty { color: var(--muted); text-align: center; font-size: 14px; padding: 18px 8px; margin: 0; }
 

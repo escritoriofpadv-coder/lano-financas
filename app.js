@@ -5,19 +5,19 @@
   var STORAGE_KEY = "lano-financas:entries:v1";
   var STORAGE_FIXED = "lano-financas:fixed:v1";
 
-  // Formatadores pt-BR
   var brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
   var monthFmt = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
 
   // Estado
   var entries = load();
-  var fixed = loadFixed(); // despesas fixas (recorrentes, valem para todo mês)
+  var fixed = loadFixed();
   var current = new Date();
   var viewYear = current.getFullYear();
   var viewMonth = current.getMonth(); // 0-11
   var selectedType = "in";
+  var selectedCat = "essencial";
+  var editingId = null;
 
-  // Elementos
   var el = {
     monthLabel: document.getElementById("monthLabel"),
     prevMonth: document.getElementById("prevMonth"),
@@ -28,11 +28,17 @@
     totalIn: document.getElementById("totalIn"),
     totalOut: document.getElementById("totalOut"),
     form: document.getElementById("entryForm"),
+    formTitle: document.getElementById("formTitle"),
     btnIn: document.getElementById("btnIn"),
     btnOut: document.getElementById("btnOut"),
+    catToggle: document.getElementById("catToggle"),
+    catEss: document.getElementById("catEss"),
+    catLaz: document.getElementById("catLaz"),
     desc: document.getElementById("desc"),
     amount: document.getElementById("amount"),
     date: document.getElementById("date"),
+    submitBtn: document.getElementById("submitBtn"),
+    cancelEdit: document.getElementById("cancelEdit"),
     list: document.getElementById("entriesList"),
     empty: document.getElementById("emptyState"),
     countBadge: document.getElementById("countBadge"),
@@ -48,7 +54,16 @@
     fixedAmount: document.getElementById("fixedAmount"),
     fixedList: document.getElementById("fixedList"),
     fixedEmpty: document.getElementById("fixedEmpty"),
-    fixedTotalBadge: document.getElementById("fixedTotalBadge")
+    fixedTotalBadge: document.getElementById("fixedTotalBadge"),
+    // relatório
+    reportBars: document.getElementById("reportBars"),
+    reportEmpty: document.getElementById("reportEmpty"),
+    reportTotalBadge: document.getElementById("reportTotalBadge"),
+    reportPaid: document.getElementById("reportPaid"),
+    // backup
+    exportBtn: document.getElementById("exportBtn"),
+    importBtn: document.getElementById("importBtn"),
+    importFile: document.getElementById("importFile")
   };
 
   // ---------- Persistência ----------
@@ -57,35 +72,22 @@
       var raw = localStorage.getItem(STORAGE_KEY);
       var data = raw ? JSON.parse(raw) : [];
       return Array.isArray(data) ? data : [];
-    } catch (e) {
-      return [];
-    }
+    } catch (e) { return []; }
   }
-
   function save() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-    } catch (e) {
-      alert("Não foi possível salvar os dados neste aparelho.");
-    }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(entries)); }
+    catch (e) { alert("Não foi possível salvar os dados neste aparelho."); }
   }
-
   function loadFixed() {
     try {
       var raw = localStorage.getItem(STORAGE_FIXED);
       var data = raw ? JSON.parse(raw) : [];
       return Array.isArray(data) ? data : [];
-    } catch (e) {
-      return [];
-    }
+    } catch (e) { return []; }
   }
-
   function saveFixed() {
-    try {
-      localStorage.setItem(STORAGE_FIXED, JSON.stringify(fixed));
-    } catch (e) {
-      alert("Não foi possível salvar as despesas fixas neste aparelho.");
-    }
+    try { localStorage.setItem(STORAGE_FIXED, JSON.stringify(fixed)); }
+    catch (e) { alert("Não foi possível salvar as despesas fixas neste aparelho."); }
   }
 
   // ---------- Helpers ----------
@@ -93,118 +95,110 @@
     var d = new Date();
     return isoFromParts(d.getFullYear(), d.getMonth(), d.getDate());
   }
+  function isoFromParts(y, m0, d) { return y + "-" + pad(m0 + 1) + "-" + pad(d); }
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function monthKey() { return viewYear + "-" + pad(viewMonth + 1); }
 
-  function isoFromParts(y, m0, d) {
-    return y + "-" + pad(m0 + 1) + "-" + pad(d);
-  }
-
-  function pad(n) {
-    return n < 10 ? "0" + n : "" + n;
-  }
-
-  // Converte valores digitados no padrão pt-BR para número.
-  // Aceita: "1500", "1500,50", "1.500", "1.500,50", "10.50", "1.000.000"
+  // Converte valores pt-BR para número: "1500", "1500,50", "1.500", "1.500,50", "10.50", "1.000.000"
   function parseAmount(str) {
     if (!str) return NaN;
     var s = String(str).trim().replace(/\s/g, "").replace(/r\$/gi, "");
     if (!s) return NaN;
-
     var hasComma = s.indexOf(",") > -1;
     var hasDot = s.indexOf(".") > -1;
-
-    if (hasComma && hasDot) {
-      // padrão pt-BR: ponto = milhar, vírgula = decimal -> "1.500,50"
-      s = s.replace(/\./g, "").replace(",", ".");
-    } else if (hasComma) {
-      // só vírgula = decimal -> "1500,50"
-      s = s.replace(",", ".");
-    } else if (hasDot) {
+    if (hasComma && hasDot) { s = s.replace(/\./g, "").replace(",", "."); }
+    else if (hasComma) { s = s.replace(",", "."); }
+    else if (hasDot) {
       var parts = s.split(".");
       var last = parts[parts.length - 1];
-      // vários pontos, ou 3 dígitos após o ponto = separador de milhar ("1.500", "1.000.000")
-      if (parts.length > 2 || last.length === 3) {
-        s = parts.join("");
-      }
-      // senão o ponto é decimal ("10.5", "10.50") -> mantém
+      if (parts.length > 2 || last.length === 3) { s = parts.join(""); }
     }
-
     return parseFloat(s);
   }
+  // número -> texto editável no campo ("1500.5" -> "1500,5")
+  function amountToInput(n) { return String(n).replace(".", ","); }
 
-  function uid() {
-    return Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);
-  }
+  function uid() { return Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
 
   function inViewMonth(iso) {
-    // iso = "YYYY-MM-DD"
-    var parts = iso.split("-");
-    return Number(parts[0]) === viewYear && Number(parts[1]) === viewMonth + 1;
+    var p = iso.split("-");
+    return Number(p[0]) === viewYear && Number(p[1]) === viewMonth + 1;
   }
-
   function formatEntryDate(iso) {
     var p = iso.split("-");
     return p[2] + "/" + p[1] + "/" + p[0];
   }
-
-  // ---------- Render ----------
-  function render() {
-    var label = monthFmt.format(new Date(viewYear, viewMonth, 1));
-    el.monthLabel.textContent = label;
-
-    var monthEntries = entries
-      .filter(function (e) { return inViewMonth(e.date); })
-      .sort(function (a, b) {
-        if (a.date === b.date) return b.created - a.created;
-        return a.date < b.date ? 1 : -1; // mais recentes primeiro
-      });
-
-    var totalIn = 0, totalOut = 0;
-    monthEntries.forEach(function (e) {
-      if (e.type === "in") totalIn += e.amount;
-      else totalOut += e.amount;
-    });
-    var balance = totalIn - totalOut;
-
-    el.totalIn.textContent = brl.format(totalIn);
-    el.totalOut.textContent = brl.format(totalOut);
-    el.balanceValue.textContent = brl.format(balance);
-
-    el.balanceCard.classList.remove("positive", "negative");
-    if (monthEntries.length === 0) {
-      el.balanceStatus.textContent = "SEM LANÇAMENTOS";
-    } else if (balance >= 0) {
-      el.balanceCard.classList.add("positive");
-      el.balanceStatus.textContent = "POSITIVO";
-    } else {
-      el.balanceCard.classList.add("negative");
-      el.balanceStatus.textContent = "NEGATIVO";
-    }
-
-    el.countBadge.textContent = monthEntries.length;
-    el.list.innerHTML = "";
-    el.empty.style.display = monthEntries.length === 0 ? "block" : "none";
-
-    monthEntries.forEach(function (e) {
-      el.list.appendChild(buildRow(e));
-    });
-
-    updateMic(balance);
-    renderFixed();
-  }
+  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
 
   function totalFixed() {
     return fixed.reduce(function (sum, f) { return sum + f.amount; }, 0);
   }
 
-  function clamp(n, min, max) {
-    return Math.max(min, Math.min(max, n));
+  // Cor do saldo: vermelho (negativo) -> amarelo (perto de zero) -> verde (positivo, mais forte quanto maior)
+  function balanceColor(v, target) {
+    var base = target > 0 ? target : (Math.abs(v) > 0 ? Math.abs(v) : 100);
+    var s = v / base; // tipicamente -1 .. +1
+    var hue, light = 47, sat = 70;
+    if (s <= 0) {
+      hue = clamp((s + 0.5) / 0.5, 0, 1) * 50; // s<=-0.5 vermelho(0), s=0 amarelo(50)
+    } else {
+      hue = 50 + clamp(s / 0.6, 0, 1) * (140 - 50); // s=0 amarelo, s>=0.6 verde(140)
+    }
+    if (s > 0.6) { light = 47 - clamp((s - 0.6) / 1.4, 0, 1) * 15; } // verde mais forte
+    return "hsl(" + Math.round(hue) + "," + sat + "%," + Math.round(light) + "%)";
   }
 
-  // Atualiza o microfone: enche conforme o saldo cobre o total das contas fixas
-  function updateMic(balance) {
+  // ---------- Render ----------
+  function render() {
+    el.monthLabel.textContent = monthFmt.format(new Date(viewYear, viewMonth, 1));
+
+    var monthEntries = entries
+      .filter(function (e) { return inViewMonth(e.date); })
+      .sort(function (a, b) {
+        if (a.date === b.date) return b.created - a.created;
+        return a.date < b.date ? 1 : -1;
+      });
+
+    var totalIn = 0, totalOut = 0;
+    monthEntries.forEach(function (e) {
+      if (e.type === "in") totalIn += e.amount; else totalOut += e.amount;
+    });
+    var totalFix = totalFixed();
+    var saldoBruto = totalIn - totalOut;
+    var saldoReal = saldoBruto - totalFix; // saldo já considerando as contas fixas
+
+    el.totalIn.textContent = brl.format(totalIn);
+    el.totalOut.textContent = brl.format(totalOut);
+    el.balanceValue.textContent = brl.format(saldoReal);
+
+    if (monthEntries.length === 0 && totalFix === 0) {
+      el.balanceValue.style.color = "var(--muted)";
+      el.balanceStatus.textContent = "SEM LANÇAMENTOS";
+      el.balanceStatus.style.color = "";
+      el.balanceStatus.style.background = "";
+    } else {
+      el.balanceValue.style.color = balanceColor(saldoReal, totalFix);
+      var st = saldoReal > 0.005 ? "POSITIVO" : (saldoReal < -0.005 ? "NEGATIVO" : "NO ZERO");
+      el.balanceStatus.textContent = st;
+      var c = balanceColor(saldoReal, totalFix);
+      el.balanceStatus.style.color = c;
+      el.balanceStatus.style.background = "color-mix(in srgb, " + c + " 18%, transparent)";
+    }
+
+    updateMic(saldoBruto);
+
+    el.countBadge.textContent = monthEntries.length;
+    el.list.innerHTML = "";
+    el.empty.style.display = monthEntries.length === 0 ? "block" : "none";
+    monthEntries.forEach(function (e) { el.list.appendChild(buildRow(e)); });
+
+    renderFixed();
+    renderReport(monthEntries, totalFix);
+  }
+
+  function updateMic(saldoBruto) {
     var target = totalFixed();
     el.micCard.classList.remove("covered", "missing");
-
     if (target <= 0) {
       el.micLevel.style.transform = "scaleY(0)";
       el.metaPct.textContent = "—";
@@ -212,72 +206,142 @@
       el.metaDetail.textContent = "para acompanhar quanto falta para as contas do mês.";
       return;
     }
-
-    var frac = clamp(balance / target, 0, 1);
+    var frac = clamp(saldoBruto / target, 0, 1);
     el.micLevel.style.transform = "scaleY(" + frac + ")";
     el.metaPct.textContent = Math.round(frac * 100) + "%";
-
-    var gap = target - balance; // quanto falta para cobrir as contas
-    if (gap > 0) {
+    var gap = target - saldoBruto;
+    if (gap > 0.005) {
       el.micCard.classList.add("missing");
       el.metaStatus.textContent = "Faltam " + brl.format(gap);
       el.metaDetail.textContent = "para cobrir " + brl.format(target) + " em contas do mês.";
     } else {
       el.micCard.classList.add("covered");
       el.metaStatus.textContent = "Contas do mês cobertas ✓";
-      el.metaDetail.textContent = gap < 0
+      el.metaDetail.textContent = gap < -0.005
         ? "Sobra " + brl.format(-gap) + " depois das contas."
         : "Saldo exatamente no valor das contas.";
     }
   }
 
+  // ---------- Relatório ----------
+  function renderReport(monthEntries, totalFix) {
+    var essencial = 0, lazer = 0;
+    monthEntries.forEach(function (e) {
+      if (e.type !== "out") return;
+      if (e.cat === "lazer") lazer += e.amount;
+      else essencial += e.amount; // sem categoria = essencial
+    });
+    var rows = [
+      { key: "fixo", label: "Fixo (contas)", value: totalFix },
+      { key: "essencial", label: "Essencial", value: essencial },
+      { key: "lazer", label: "Lazer", value: lazer }
+    ];
+    var total = totalFix + essencial + lazer;
+    var maxv = Math.max(totalFix, essencial, lazer, 1);
+
+    el.reportTotalBadge.textContent = brl.format(total);
+    el.reportBars.innerHTML = "";
+    el.reportEmpty.style.display = total === 0 ? "block" : "none";
+
+    if (total > 0) {
+      rows.forEach(function (r) {
+        var pct = total > 0 ? Math.round((r.value / total) * 100) : 0;
+        var w = Math.round((r.value / maxv) * 100);
+        var div = document.createElement("div");
+        div.className = "report-row";
+        var top = document.createElement("div");
+        top.className = "report-top";
+        var name = document.createElement("span");
+        name.className = "report-name";
+        name.textContent = r.label;
+        var val = document.createElement("span");
+        val.className = "report-val";
+        val.textContent = brl.format(r.value) + " · " + pct + "%";
+        top.appendChild(name); top.appendChild(val);
+        var track = document.createElement("div");
+        track.className = "report-track";
+        var fill = document.createElement("div");
+        fill.className = "report-fill " + r.key;
+        fill.style.width = w + "%";
+        track.appendChild(fill);
+        div.appendChild(top); div.appendChild(track);
+        el.reportBars.appendChild(div);
+      });
+    }
+
+    // contas fixas pagas no mês
+    var mk = monthKey();
+    var paid = fixed.filter(function (f) { return f.paid && f.paid[mk]; }).length;
+    el.reportPaid.textContent = fixed.length
+      ? "Contas fixas pagas: " + paid + " de " + fixed.length
+      : "";
+  }
+
+  // ---------- Despesas fixas ----------
   function renderFixed() {
     el.fixedTotalBadge.textContent = brl.format(totalFixed());
     el.fixedList.innerHTML = "";
     el.fixedEmpty.style.display = fixed.length === 0 ? "block" : "none";
-    fixed.forEach(function (f) {
-      el.fixedList.appendChild(buildFixedRow(f));
-    });
+    fixed.forEach(function (f) { el.fixedList.appendChild(buildFixedRow(f)); });
   }
 
   function buildFixedRow(f) {
+    var mk = monthKey();
+    var isPaid = !!(f.paid && f.paid[mk]);
     var li = document.createElement("li");
-    li.className = "entry";
+    li.className = "entry" + (isPaid ? " paid" : "");
 
-    var dot = document.createElement("span");
-    dot.className = "entry-dot out";
+    var chk = document.createElement("button");
+    chk.type = "button";
+    chk.className = "paid-check" + (isPaid ? " on" : "");
+    chk.setAttribute("aria-label", isPaid ? "Marcar como não paga" : "Marcar como paga");
+    chk.innerHTML = "&#10003;";
+    chk.addEventListener("click", function () {
+      if (!f.paid) f.paid = {};
+      if (f.paid[mk]) delete f.paid[mk]; else f.paid[mk] = true;
+      saveFixed(); render();
+    });
 
     var info = document.createElement("div");
     info.className = "entry-info";
     var name = document.createElement("div");
     name.className = "entry-desc";
     name.textContent = f.name;
-    info.appendChild(name);
+    var sub = document.createElement("div");
+    sub.className = "entry-sub";
+    var tag = document.createElement("span");
+    tag.className = "cat-tag essencial";
+    tag.style.background = "rgba(240,162,58,0.18)";
+    tag.style.color = "#f0a23a";
+    tag.textContent = "FIXO";
+    sub.appendChild(tag);
+    if (isPaid) { var p = document.createElement("span"); p.textContent = "paga"; sub.appendChild(p); }
+    info.appendChild(name); info.appendChild(sub);
 
     var amount = document.createElement("div");
     amount.className = "entry-amount";
     amount.textContent = brl.format(f.amount);
 
+    var actions = document.createElement("div");
+    actions.className = "entry-actions";
     var del = document.createElement("button");
-    del.className = "del-btn";
+    del.className = "icon-act del";
     del.type = "button";
     del.setAttribute("aria-label", "Excluir despesa fixa");
     del.innerHTML = "&times;";
     del.addEventListener("click", function () {
       if (confirm("Excluir a conta fixa \"" + f.name + "\"?")) {
         fixed = fixed.filter(function (x) { return x.id !== f.id; });
-        saveFixed();
-        render();
+        saveFixed(); render();
       }
     });
+    actions.appendChild(del);
 
-    li.appendChild(dot);
-    li.appendChild(info);
-    li.appendChild(amount);
-    li.appendChild(del);
+    li.appendChild(chk); li.appendChild(info); li.appendChild(amount); li.appendChild(actions);
     return li;
   }
 
+  // ---------- Lançamentos ----------
   function buildRow(e) {
     var li = document.createElement("li");
     li.className = "entry";
@@ -290,88 +354,133 @@
     var desc = document.createElement("div");
     desc.className = "entry-desc";
     desc.textContent = e.desc;
-    var date = document.createElement("div");
-    date.className = "entry-date";
-    date.textContent = formatEntryDate(e.date);
-    info.appendChild(desc);
-    info.appendChild(date);
+    var sub = document.createElement("div");
+    sub.className = "entry-sub";
+    var dt = document.createElement("span");
+    dt.textContent = formatEntryDate(e.date);
+    sub.appendChild(dt);
+    if (e.type === "out") {
+      var cat = e.cat === "lazer" ? "lazer" : "essencial";
+      var tag = document.createElement("span");
+      tag.className = "cat-tag " + cat;
+      tag.textContent = cat === "lazer" ? "Lazer" : "Essencial";
+      sub.appendChild(tag);
+    }
+    info.appendChild(desc); info.appendChild(sub);
 
     var amount = document.createElement("div");
     amount.className = "entry-amount " + e.type;
     amount.textContent = (e.type === "in" ? "+ " : "− ") + brl.format(e.amount);
 
+    var actions = document.createElement("div");
+    actions.className = "entry-actions";
+    var edit = document.createElement("button");
+    edit.className = "icon-act";
+    edit.type = "button";
+    edit.setAttribute("aria-label", "Editar lançamento");
+    edit.innerHTML = "&#9998;"; // lápis
+    edit.addEventListener("click", function () { startEdit(e); });
     var del = document.createElement("button");
-    del.className = "del-btn";
+    del.className = "icon-act del";
     del.type = "button";
     del.setAttribute("aria-label", "Excluir lançamento");
     del.innerHTML = "&times;";
     del.addEventListener("click", function () {
       if (confirm("Excluir \"" + e.desc + "\"?")) {
         entries = entries.filter(function (x) { return x.id !== e.id; });
-        save();
-        render();
+        if (editingId === e.id) resetForm();
+        save(); render();
       }
     });
+    actions.appendChild(edit); actions.appendChild(del);
 
-    li.appendChild(dot);
-    li.appendChild(info);
-    li.appendChild(amount);
-    li.appendChild(del);
+    li.appendChild(dot); li.appendChild(info); li.appendChild(amount); li.appendChild(actions);
     return li;
   }
 
-  // ---------- Eventos ----------
-  el.prevMonth.addEventListener("click", function () {
-    viewMonth--;
-    if (viewMonth < 0) { viewMonth = 11; viewYear--; }
-    render();
-  });
+  // ---------- Edição ----------
+  function startEdit(e) {
+    editingId = e.id;
+    setType(e.type);
+    if (e.type === "out") setCat(e.cat === "lazer" ? "lazer" : "essencial");
+    el.desc.value = e.desc;
+    el.amount.value = amountToInput(e.amount);
+    el.date.value = e.date;
+    el.formTitle.textContent = "Editar lançamento";
+    el.submitBtn.textContent = "Salvar alteração";
+    el.cancelEdit.hidden = false;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    el.desc.focus();
+  }
+  function resetForm() {
+    editingId = null;
+    el.desc.value = "";
+    el.amount.value = "";
+    el.date.value = todayISO();
+    el.formTitle.textContent = "Novo lançamento";
+    el.submitBtn.textContent = "Adicionar";
+    el.cancelEdit.hidden = true;
+  }
 
-  el.nextMonth.addEventListener("click", function () {
-    viewMonth++;
-    if (viewMonth > 11) { viewMonth = 0; viewYear++; }
-    render();
-  });
-
+  // ---------- Tipo / categoria ----------
   function setType(type) {
     selectedType = type;
     el.btnIn.classList.toggle("active", type === "in");
     el.btnOut.classList.toggle("active", type === "out");
+    el.catToggle.classList.toggle("show", type === "out");
   }
+  function setCat(cat) {
+    selectedCat = cat;
+    el.catEss.classList.toggle("active", cat === "essencial");
+    el.catLaz.classList.toggle("active", cat === "lazer");
+  }
+
+  // ---------- Eventos ----------
+  el.prevMonth.addEventListener("click", function () {
+    viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } render();
+  });
+  el.nextMonth.addEventListener("click", function () {
+    viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } render();
+  });
   el.btnIn.addEventListener("click", function () { setType("in"); });
   el.btnOut.addEventListener("click", function () { setType("out"); });
+  el.catEss.addEventListener("click", function () { setCat("essencial"); });
+  el.catLaz.addEventListener("click", function () { setCat("lazer"); });
+  el.cancelEdit.addEventListener("click", function () { resetForm(); });
 
   el.form.addEventListener("submit", function (ev) {
     ev.preventDefault();
     var desc = el.desc.value.trim();
     var amount = parseAmount(el.amount.value);
     var date = el.date.value || todayISO();
-
     if (!desc) { el.desc.focus(); return; }
     if (!isFinite(amount) || amount <= 0) {
-      alert("Informe um valor válido maior que zero.");
-      el.amount.focus();
-      return;
+      alert("Informe um valor válido maior que zero."); el.amount.focus(); return;
     }
+    amount = Math.round(amount * 100) / 100;
 
-    entries.push({
-      id: uid(),
-      type: selectedType,
-      desc: desc,
-      amount: Math.round(amount * 100) / 100,
-      date: date,
-      created: Date.now()
-    });
+    if (editingId) {
+      for (var i = 0; i < entries.length; i++) {
+        if (entries[i].id === editingId) {
+          entries[i].type = selectedType;
+          entries[i].desc = desc;
+          entries[i].amount = amount;
+          entries[i].date = date;
+          entries[i].cat = selectedType === "out" ? selectedCat : undefined;
+          break;
+        }
+      }
+    } else {
+      entries.push({
+        id: uid(), type: selectedType, desc: desc, amount: amount, date: date,
+        cat: selectedType === "out" ? selectedCat : undefined, created: Date.now()
+      });
+    }
     save();
 
-    // Pula para o mês do lançamento, caso seja diferente do mês em exibição
     var p = date.split("-");
-    viewYear = Number(p[0]);
-    viewMonth = Number(p[1]) - 1;
-
-    el.desc.value = "";
-    el.amount.value = "";
-    el.date.value = todayISO();
+    viewYear = Number(p[0]); viewMonth = Number(p[1]) - 1;
+    resetForm();
     el.desc.focus();
     render();
   });
@@ -380,33 +489,56 @@
     ev.preventDefault();
     var name = el.fixedName.value.trim();
     var amount = parseAmount(el.fixedAmount.value);
-
     if (!name) { el.fixedName.focus(); return; }
     if (!isFinite(amount) || amount <= 0) {
-      alert("Informe um valor válido maior que zero.");
-      el.fixedAmount.focus();
-      return;
+      alert("Informe um valor válido maior que zero."); el.fixedAmount.focus(); return;
     }
-
-    fixed.push({
-      id: uid(),
-      name: name,
-      amount: Math.round(amount * 100) / 100
-    });
+    fixed.push({ id: uid(), name: name, amount: Math.round(amount * 100) / 100, paid: {} });
     saveFixed();
-
-    el.fixedName.value = "";
-    el.fixedAmount.value = "";
-    el.fixedName.focus();
+    el.fixedName.value = ""; el.fixedAmount.value = ""; el.fixedName.focus();
     render();
   });
 
+  // ---------- Backup ----------
+  el.exportBtn.addEventListener("click", function () {
+    var payload = { app: "lano-financas", version: 2, exportedAt: new Date().toISOString(), entries: entries, fixed: fixed };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    var d = new Date();
+    a.href = url;
+    a.download = "lano-financas-backup-" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + ".json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  });
+  el.importBtn.addEventListener("click", function () { el.importFile.click(); });
+  el.importFile.addEventListener("change", function () {
+    var file = el.importFile.files && el.importFile.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var data = JSON.parse(reader.result);
+        var newEntries = Array.isArray(data.entries) ? data.entries : null;
+        var newFixed = Array.isArray(data.fixed) ? data.fixed : null;
+        if (!newEntries && !newFixed) { alert("Arquivo de backup inválido."); return; }
+        if (!confirm("Isto vai SUBSTITUIR os dados atuais pelos do backup. Continuar?")) return;
+        entries = newEntries || [];
+        fixed = newFixed || [];
+        save(); saveFixed(); resetForm(); render();
+        alert("Backup restaurado com sucesso!");
+      } catch (e) { alert("Não foi possível ler o arquivo de backup."); }
+      el.importFile.value = "";
+    };
+    reader.readAsText(file);
+  });
+
   // ---------- Init ----------
-  el.date.value = todayISO();
+  resetForm();
   setType("in");
+  setCat("essencial");
   render();
 
-  // Service worker (PWA — funciona offline e permite instalar)
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", function () {
       navigator.serviceWorker.register("sw.js").catch(function () {});
