@@ -122,8 +122,26 @@
     }
     return parseFloat(s);
   }
-  // número -> texto editável no campo ("1500.5" -> "1500,5")
-  function amountToInput(n) { return String(n).replace(".", ","); }
+  // formata uma sequência de dígitos como moeda preenchendo da direita: "250" -> "2,50"
+  function formatCentsDigits(d) {
+    d = ("" + d).replace(/\D/g, "").replace(/^0+/, "");
+    if (d === "") return "";
+    while (d.length < 3) d = "0" + d;
+    var cents = d.slice(-2);
+    var intp = d.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return intp + "," + cents;
+  }
+  // número -> texto no campo já mascarado ("1500.5" -> "1.500,50")
+  function amountToInput(n) { return formatCentsDigits(String(Math.round(n * 100))); }
+  // aplica a máscara de moeda enquanto o usuário digita
+  function maskBRL(input) {
+    input.addEventListener("input", function () {
+      var pos = input.selectionStart, len = input.value.length;
+      input.value = formatCentsDigits(input.value);
+      // mantém o cursor no fim (digitação da direita para a esquerda)
+      if (pos >= len) { try { input.setSelectionRange(input.value.length, input.value.length); } catch (e) {} }
+    });
+  }
 
   function uid() { return Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
 
@@ -738,6 +756,8 @@
   });
 
   // ---------- Init ----------
+  maskBRL(el.amount);
+  maskBRL(el.fixedAmount);
   resetForm();
   setType("in");
   setCat("essencial");
