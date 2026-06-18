@@ -16,6 +16,7 @@
   var viewMonth = current.getMonth(); // 0-11
   var selectedType = "in";
   var selectedCat = "essencial";
+  var fixedRep = "always";
   var editingId = null;
 
   var el = {
@@ -56,6 +57,10 @@
     fixedList: document.getElementById("fixedList"),
     fixedEmpty: document.getElementById("fixedEmpty"),
     fixedTotalBadge: document.getElementById("fixedTotalBadge"),
+    repAlways: document.getElementById("repAlways"),
+    repCount: document.getElementById("repCount"),
+    repMonthsField: document.getElementById("repMonthsField"),
+    fixedMonths: document.getElementById("fixedMonths"),
     // relatório
     reportBars: document.getElementById("reportBars"),
     reportEmpty: document.getElementById("reportEmpty"),
@@ -132,8 +137,23 @@
   }
   function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
 
+  // índice numérico de um mês "YYYY-MM" para comparar períodos
+  function mkIndex(mk) { var p = mk.split("-"); return Number(p[0]) * 12 + (Number(p[1]) - 1); }
+
+  // a conta fixa está ativa no mês em exibição?
+  function fixedActiveIn(f, mk) {
+    var start = f.startMonth || "2000-01"; // legado (sem início) = sempre
+    var si = mkIndex(start), ci = mkIndex(mk);
+    if (ci < si) return false;
+    if (f.months == null) return true; // indeterminado
+    return ci < si + f.months;
+  }
+  function activeFixed() {
+    var mk = monthKey();
+    return fixed.filter(function (f) { return fixedActiveIn(f, mk); });
+  }
   function totalFixed() {
-    return fixed.reduce(function (sum, f) { return sum + f.amount; }, 0);
+    return activeFixed().reduce(function (sum, f) { return sum + f.amount; }, 0);
   }
 
   // Cor do saldo: vermelho (negativo) -> amarelo (perto de zero) -> verde (positivo, mais forte quanto maior)
@@ -170,7 +190,7 @@
     var saldoReal = saldoBruto - totalFix; // saldo já considerando as contas fixas
 
     el.totalIn.textContent = brl.format(totalIn);
-    el.totalOut.textContent = brl.format(totalOut);
+    el.totalOut.textContent = brl.format(totalOut + totalFix); // saídas incluem contas fixas
     el.balanceValue.textContent = brl.format(saldoReal);
 
     if (monthEntries.length === 0 && totalFix === 0) {
@@ -286,10 +306,21 @@
 
   // ---------- Despesas fixas ----------
   function renderFixed() {
+    var ativas = activeFixed();
     el.fixedTotalBadge.textContent = brl.format(totalFixed());
     el.fixedList.innerHTML = "";
-    el.fixedEmpty.style.display = fixed.length === 0 ? "block" : "none";
-    fixed.forEach(function (f) { el.fixedList.appendChild(buildFixedRow(f)); });
+    el.fixedEmpty.style.display = ativas.length === 0 ? "block" : "none";
+    el.fixedEmpty.textContent = fixed.length === 0
+      ? "Nenhuma conta fixa cadastrada ainda."
+      : "Nenhuma conta fixa neste mês.";
+    ativas.forEach(function (f) { el.fixedList.appendChild(buildFixedRow(f)); });
+  }
+
+  function fixedPeriodText(f) {
+    if (f.months == null) return "todo mês";
+    var si = mkIndex(f.startMonth || "2000-01");
+    var ci = mkIndex(monthKey());
+    return "mês " + (ci - si + 1) + " de " + f.months;
   }
 
   function buildFixedRow(f) {
@@ -322,7 +353,10 @@
     tag.style.color = "#f0a23a";
     tag.textContent = "FIXO";
     sub.appendChild(tag);
-    if (isPaid) { var p = document.createElement("span"); p.textContent = "paga"; sub.appendChild(p); }
+    var per = document.createElement("span");
+    per.textContent = fixedPeriodText(f);
+    sub.appendChild(per);
+    if (isPaid) { var p = document.createElement("span"); p.textContent = "· paga"; sub.appendChild(p); }
     info.appendChild(name); info.appendChild(sub);
 
     var amount = document.createElement("div");
@@ -500,11 +534,32 @@
     if (!isFinite(amount) || amount <= 0) {
       alert("Informe um valor válido maior que zero."); el.fixedAmount.focus(); return;
     }
-    fixed.push({ id: uid(), name: name, amount: Math.round(amount * 100) / 100, paid: {} });
+    var months = null;
+    if (fixedRep === "count") {
+      months = parseInt(el.fixedMonths.value, 10);
+      if (!months || months < 1) {
+        alert("Informe por quantos meses essa conta se repete (1 ou mais)."); el.fixedMonths.focus(); return;
+      }
+    }
+    fixed.push({
+      id: uid(), name: name, amount: Math.round(amount * 100) / 100,
+      startMonth: monthKey(), months: months, paid: {}
+    });
     saveFixed();
-    el.fixedName.value = ""; el.fixedAmount.value = ""; el.fixedName.focus();
+    el.fixedName.value = ""; el.fixedAmount.value = ""; el.fixedMonths.value = "";
+    setRep("always");
+    el.fixedName.focus();
     render();
   });
+
+  function setRep(r) {
+    fixedRep = r;
+    el.repAlways.classList.toggle("active", r === "always");
+    el.repCount.classList.toggle("active", r === "count");
+    el.repMonthsField.style.display = r === "count" ? "flex" : "none";
+  }
+  el.repAlways.addEventListener("click", function () { setRep("always"); });
+  el.repCount.addEventListener("click", function () { setRep("count"); });
 
   // ---------- Backup ----------
   el.exportBtn.addEventListener("click", function () {
@@ -549,7 +604,7 @@
       else { totalOut += e.amount; if (e.cat === "lazer") laz += e.amount; else ess += e.amount; }
     });
     var fix = totalFixed();
-    return { me: me, totalIn: totalIn, totalOut: totalOut, ess: ess, laz: laz, fix: fix, saldoReal: totalIn - totalOut - fix };
+    return { me: me, totalIn: totalIn, totalOut: totalOut, ess: ess, laz: laz, fix: fix, saldoReal: totalIn - totalOut - fix, fixedList: activeFixed() };
   }
 
   function buildReportLines() {
@@ -561,8 +616,8 @@
     add("", false, 11);
     add("RESUMO", true, 13);
     add("Entradas:  " + brl.format(d.totalIn));
-    add("Saídas:  " + brl.format(d.totalOut));
-    add("Contas fixas:  " + brl.format(d.fix));
+    add("Saídas (com contas fixas):  " + brl.format(d.totalOut + d.fix));
+    add("   sendo contas fixas:  " + brl.format(d.fix));
     var st = d.saldoReal > 0.005 ? "POSITIVO" : (d.saldoReal < -0.005 ? "NEGATIVO" : "NO ZERO");
     add("Saldo total (entradas - saídas - contas fixas): " + brl.format(d.saldoReal) + "  [" + st + "]", true);
     add("", false, 11);
@@ -573,9 +628,16 @@
     add("Essencial:  " + brl.format(d.ess) + "  (" + pc(d.ess) + ")");
     add("Lazer:  " + brl.format(d.laz) + "  (" + pc(d.laz) + ")");
     var mk = monthKey();
-    if (fixed.length) {
-      var paid = fixed.filter(function (f) { return f.paid && f.paid[mk]; }).length;
-      add("Contas fixas pagas: " + paid + " de " + fixed.length);
+    if (d.fixedList.length) {
+      add("", false, 11);
+      add("CONTAS FIXAS DO MÊS", true, 13);
+      var paid = 0;
+      d.fixedList.forEach(function (f) {
+        var pg = f.paid && f.paid[mk];
+        if (pg) paid++;
+        add(f.name + ":  " + brl.format(f.amount) + "   (" + (pg ? "paga" : "pendente") + ")");
+      });
+      add("Pagas: " + paid + " de " + d.fixedList.length);
     }
     add("", false, 11);
     add("LANÇAMENTOS DO MÊS", true, 13);
@@ -679,6 +741,7 @@
   resetForm();
   setType("in");
   setCat("essencial");
+  setRep("always");
   render();
 
   if ("serviceWorker" in navigator) {

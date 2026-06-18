@@ -205,13 +205,14 @@ body {
 .cat-btn { font-size: 14px; padding: 9px; }
 .cat-btn.active[data-cat="essencial"] { background: #3b82f6; color: #04122b; }
 .cat-btn.active[data-cat="lazer"] { background: #b06be0; color: #1c0a2b; }
+.cat-btn.active[data-rep] { background: var(--green); color: #04270f; }
 
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .field > span { font-size: 13px; color: var(--muted); }
 .row { display: flex; gap: 12px; }
 .row > .field { flex: 1 1 0; min-width: 0; margin-bottom: 12px; }
 
-input[type="text"], input[type="date"] {
+input[type="text"], input[type="date"], input[type="number"] {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 11px;

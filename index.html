@@ -132,6 +132,16 @@
             <input type="text" id="fixedAmount" inputmode="decimal" placeholder="0,00" required />
           </label>
         </div>
+
+        <div class="cat-toggle show" id="repToggle" role="group" aria-label="Repetição da conta">
+          <button type="button" class="cat-btn active" data-rep="always" id="repAlways">Repete sempre</button>
+          <button type="button" class="cat-btn" data-rep="count" id="repCount">Por período</button>
+        </div>
+        <label class="field" id="repMonthsField" style="display:none">
+          <span>Quantos meses? (a partir deste mês)</span>
+          <input type="number" id="fixedMonths" inputmode="numeric" min="1" max="240" placeholder="Ex.: 4 (IPVA)" />
+        </label>
+
         <button type="submit" class="submit-btn alt">Adicionar conta fixa</button>
       </form>
       <ul class="entries" id="fixedList"></ul>
