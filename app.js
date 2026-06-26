@@ -629,7 +629,7 @@
     var d = monthDataForPdf();
     var L = [];
     function add(t, b, s) { L.push({ t: t, b: !!b, s: s || 11 }); }
-    add("Finanças na Mão", true, 20);
+    add("Você no Controle", true, 20);
     add("Relatório de " + monthFmt.format(new Date(viewYear, viewMonth, 1)), false, 12);
     add("", false, 11);
     add("RESUMO", true, 13);
@@ -671,7 +671,7 @@
       add(p[2] + "/" + p[1] + "   " + sign + brl.format(e.amount) + "   " + desc + cat);
     });
     add("", false, 11);
-    add("Gerado em " + new Date().toLocaleString("pt-BR") + " - Finanças na Mão", false, 9);
+    add("Gerado em " + new Date().toLocaleString("pt-BR") + " - Você no Controle", false, 9);
     return L;
   }
 

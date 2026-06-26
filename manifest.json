@@ -1,6 +1,6 @@
 {
-  "name": "Finanças na Mão",
-  "short_name": "Finanças na Mão",
+  "name": "Você no Controle",
+  "short_name": "Você no Controle",
   "description": "Controle simples de entradas e saídas do mês.",
   "lang": "pt-BR",
   "start_url": "./index.html",
